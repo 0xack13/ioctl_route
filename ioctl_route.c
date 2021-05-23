@@ -1,38 +1,45 @@
+#include<errno.h>
 #include<stdio.h>
-#include<stdlib.h>
-#include<sys/socket.h>
-#include<netinet/in.h>
-#include<arpa/inet.h>
+#include<string.h>
+#include <net/route.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
+
 int main()
 {
-    // socket file descriptor
-    int sockfd, new_socket, c;
-    struct sockaddr_in name, client;
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0)
-    {
-        perror("socket");
-        exit(EXIT_FAILURE);
-    }
-	bzero(&name, sizeof(name));
-    name.sin_family = AF_INET;
-    name.sin_port = htons(8080);
-    name.sin_addr.s_addr = INADDR_ANY;
-    if (bind(sockfd, (struct sockaddr *) &name, sizeof(name)) < 0)
-    {
-        perror("bind");
-        exit(EXIT_FAILURE);
-    }
-    listen(sockfd, 3);
-    printf("socket created!");
-    //Accept and incoming connection
-	puts("Waiting for incoming connections...");
-	c = sizeof(struct sockaddr_in);
-	new_socket = accept(sockfd, (struct sockaddr *)&client, (socklen_t*)&c);
-	if (new_socket<0)
-	{
-		perror("accept failed");
-	}
+    int sockfd;
+    struct rtentry route;
+    struct sockaddr_in *addr;
+    int err = 0;
 
-	puts("Connection accepted");
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+    if (sockfd == -1)
+    {
+        perror("Socket failed..");
+        return -1;
+    }
+
+    memset(&route, 0, sizeof(route));
+    addr = (struct sockaddr_in*) &route.rt_gateway;
+    addr->sin_family = AF_INET;
+    // this gateway should be up
+    addr->sin_addr.s_addr = inet_addr("172.16.78.2");
+    
+    addr = (struct sockaddr_in*) &route.rt_dst;
+    addr->sin_family = AF_INET;
+    addr->sin_addr.s_addr = inet_addr("10.10.10.0");
+
+    addr = (struct sockaddr_in*) &route.rt_genmask;
+    addr->sin_family = AF_INET;
+    addr->sin_addr.s_addr = inet_addr("255.255.255.0");
+
+    route.rt_flags = RTF_UP | RTF_GATEWAY;
+
+    if((err = ioctl(sockfd, SIOCADDRT, &route)) != 0 )
+    {
+        perror("SIOCADDRT failed");
+        return -1;
+    }
+
 }
